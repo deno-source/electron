@@ -1,9 +1,10 @@
 import "./App.css";
-import { Button, Input, Row, Col, Space } from "antd";
+import { Input, Button, Row, Col, Space, TimePicker, Typography } from "antd";
 import banner from "./banner.jpg";
 import { useEffect, useState } from "react";
 const { ipcRenderer } = window.electron;
-const { Search, TextArea } = Input;
+const { Search } = Input;
+const { Text, Link } = Typography;
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -22,19 +23,26 @@ function App() {
       <Space direction="vertical">
         <Row>
           <Col>
-            <img width="100%" src={banner} alt="" />
+            <img
+              style={{
+                "-webkit-app-region": "drag",
+              }}
+              width="100%"
+              src={banner}
+            />
           </Col>
         </Row>
         <Row>
-          <Col span={16} offset={4}>
-            <TextArea
-              placeholder="请输入需要截图的店铺名称，回车换行分隔"
-              rows={6}
-              onChange={(event) => {
-                let readArr = event.nativeEvent.target.value.split("\n");
-                setTypeValue(readArr);
+          <Col  style={{ textAlign: "center" }} span={16} offset={4}>
+            <Space>
+            <Text strong type="success">准备定时于每天</Text>
+            <TimePicker
+              onChange={(time) => {
+                console.log(time);
               }}
             />
+            <Text strong type="success">开始自动截图</Text>
+            </Space>
           </Col>
         </Row>
         <Row>
@@ -46,12 +54,33 @@ function App() {
               onSearch={(value) => {
                 setLoading(true);
                 ipcRenderer.send("screenshot", {
-                  chromeUrl:
-                    value,
+                  chromeUrl: value,
                   shopList: typeValue,
                 });
               }}
             />
+          </Col>
+        </Row>
+        <Row>
+          <Col style={{ textAlign: "center" }} span={16} offset={4}>
+            <Space>
+              <Button
+                type="primary"
+                onClick={() => {
+                  ipcRenderer.send("hide", "");
+                }}
+              >
+                后台运行
+              </Button>
+              <Button
+                type="danger"
+                onClick={() => {
+                  ipcRenderer.send("close", "");
+                }}
+              >
+                彻底退出
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Space>
