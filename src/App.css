@@ -1,1 +1,8 @@
 @import '~antd/dist/antd.css';
+body{
+    background-color: transparent;
+}
+.App{
+    background: #ebf6ff;
+    border-radius: 15px;
+}

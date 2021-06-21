@@ -18,7 +18,8 @@
       "settings/**/*",
       "package.json",
       "main.js",
-      "preload.js"
+      "preload.js",
+      "app.png"
     ]
   },
   "dependencies": {

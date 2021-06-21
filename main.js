@@ -2,23 +2,28 @@ const { app, BrowserWindow, dialog, ipcMain, Tray, Menu } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const start = require('./screen/index.js');
-
+const schedule = require("node-schedule");
+var job = null;
 app.on('ready', function() {
 
-    ipcMain.on('screenshot', async function(event, { chromeUrl, shopList }) {
+    ipcMain.on('screenshot', function(event, { chromeUrl, shopList, time }) {
         try {
-            await start(chromeUrl, shopList);
+            job = schedule.scheduleJob(time, async function() {
+                await start(chromeUrl, shopList);
+            });
         } catch (e) {
             event.reply('reply', e);
         }
-        event.reply('reply', '截图完成！');
-    })
-    ipcMain.on('close', function(event, { chromeUrl, shopList }) {
-        mainWin.close()
-    })
-    ipcMain.on('hide', function(event, { chromeUrl, shopList }) {
-        mainWin.hide()
-    })
+    });
+    ipcMain.on('cancelJob', function(event, ) {
+        job && job.cancel();
+    });
+    ipcMain.on('close', function(event) {
+        mainWin.close();
+    });
+    ipcMain.on('hide', function(event) {
+        mainWin.hide();
+    });
 
     // autoUpdater.autoDownload = false;
     // autoUpdater.checkForUpdatesAndNotify();
@@ -45,7 +50,7 @@ app.on('ready', function() {
         width: 800,
         height: 600,
         resizable: false,
-        transparent:true,
+        transparent: true,
         frame: false,
         webPreferences: {
             nodeIntegration: true, //可以使用node
@@ -54,19 +59,21 @@ app.on('ready', function() {
         }
     });
     // mainWin.webContents.session.loadExtension('C:/Users/Administrator/Desktop/桌面/chromeTmall');
-    // mainWin.loadURL(`file://${path.join(__dirname,'./build/index.html')}`);
+    mainWin.loadURL(`file://${path.join(__dirname,'./build/index.html')}`);
     // mainWin.loadURL(`https://adidas.tmall.com/`);
-    mainWin.loadURL('http://localhost:3000/');
+    // mainWin.loadURL('http://localhost:3000/');
+    // mainWin.webContents.openDevTools()
     let trayMenuTemplate = [{ //系统托盘图标目录
-        label: '退出',
+        label: '退出小钟截图',
         click: function() {
             app.quit();
         }
     }];
+
     appTray = new Tray(path.join(__dirname, './app.png'));
     const contextMenu = Menu.buildFromTemplate(trayMenuTemplate);
     // 设置托盘悬浮提示
-    appTray.setToolTip('never forget');
+    appTray.setToolTip('小钟截图');
     // 设置托盘菜单
     appTray.setContextMenu(contextMenu);
 
