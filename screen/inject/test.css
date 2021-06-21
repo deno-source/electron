@@ -1,0 +1,30 @@
+div[data-spmd] {
+    border: 1px solid red !important;
+	box-sizing:border-box;
+}
+
+/* .a-view.gmmod-weexitem.gmkj-gctz[data-spmd]:before {
+    content: attr(data-spmd);
+    position: relative;
+    left: 0px;
+    bottom: 0px;
+    background: #ffeb3b8f;
+    z-index: 9999999;
+    font-size: 12px;
+    word-break: break-all;
+    word-wrap: break-word;
+    color: #ff5722;
+} */
+
+div[data-spmd]:after {
+    content: attr(link);
+    position: relative;
+    left: 0px;
+    top: 0px;
+    background: rgba(255, 255, 255,0.8);
+    z-index: 9999999;
+    font-size: 12px;
+    word-break: break-all;
+    word-wrap: break-word;
+    color: #ff5722;
+}
