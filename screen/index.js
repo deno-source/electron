@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer-core');
 // const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
+const { ipcMain } = require('electron');
 const fetch = require('node-fetch');
 const scrollToBottom = require('./scrollToBottom.js');
 const mkdirsSync = require('./mkdirsSync.js');
@@ -12,7 +13,7 @@ var nowShopName = null;
 var nowModuleList = null;
 var resourceJsIndex = 1; //资源标记索引，记录当前是第几个js
 var resourceCssIndex = 1; //资源标记索引，记录当前是第几个css
-module.exports = async function start(chromeUrl, shopName) {
+module.exports = async function start(chromeUrl, shopName, mainWindow) {
     console.log(chromeUrl, shopName)
     const browser = await puppeteer.launch({
         headless: true,
@@ -205,6 +206,9 @@ module.exports = async function start(chromeUrl, shopName) {
             }
 
             mergeImages(shopName[shop], analyzerFolderName) //合并图片
+            mainWindow.webContents.send('successScreen', {
+                shop: shopName[shop]
+            });
         }
     }
 

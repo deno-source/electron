@@ -1,15 +1,18 @@
 const { app, BrowserWindow, dialog, ipcMain, Tray, Menu } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const isDev = require('electron-is-dev');
 const path = require('path');
 const start = require('./screen/index.js');
 const schedule = require("node-schedule");
 var job = null;
+
 app.on('ready', function() {
 
     ipcMain.on('screenshot', function(event, { chromeUrl, shopList, time }) {
+        console.log(time)
         try {
-            job = schedule.scheduleJob(time, async function() {
-                await start(chromeUrl, shopList);
+            job = schedule.scheduleJob(`${time.getSeconds()} ${time.getMinutes()} ${time.getHours()} * * *`, async function() {
+                await start(chromeUrl, shopList, mainWin);
             });
         } catch (e) {
             event.reply('reply', e);
@@ -59,10 +62,10 @@ app.on('ready', function() {
         }
     });
     // mainWin.webContents.session.loadExtension('C:/Users/Administrator/Desktop/桌面/chromeTmall');
-    mainWin.loadURL(`file://${path.join(__dirname,'./build/index.html')}`);
+
     // mainWin.loadURL(`https://adidas.tmall.com/`);
-    // mainWin.loadURL('http://localhost:3000/');
-    // mainWin.webContents.openDevTools()
+    isDev ? (mainWin.loadURL('http://localhost:3000/'), mainWin.webContents.openDevTools()) : mainWin.loadURL(`file://${path.join(__dirname, './build/index.html')}`);
+
     let trayMenuTemplate = [{ //系统托盘图标目录
         label: '退出小钟截图',
         click: function() {

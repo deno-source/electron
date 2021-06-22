@@ -9,8 +9,14 @@ import {
   TimePicker,
   Typography,
 } from "antd";
+import {
+  ChromeOutlined,
+  ClockCircleOutlined,
+  CloseCircleOutlined,
+} from "@ant-design/icons";
 import banner from "./banner.jpg";
 import { useEffect, useState } from "react";
+
 const { ipcRenderer } = window.electron;
 const { Search, TextArea } = Input;
 const { Text, Link } = Typography;
@@ -19,18 +25,30 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [typeValue, setTypeValue] = useState([]);
   const [time, setTime] = useState("");
-  const [chromeUrl, setChromeUrl] = useState(null);
+  const [chromeUrl, setChromeUrl] = useState(localStorage.getItem("chromeUrl"));
   useEffect(() => {
     function listenScreen(event, msg) {
       setLoading(false);
     }
-    let url = localStorage.getItem("chromeUrl");
-    url && setChromeUrl(url);
+    function listenShop(event, msg) {
+      console.log("截图完成！");
+      message.success(`${msg.shop}店铺截图完成！`);
+      new Notification("截图完成！", { body: `${msg}店铺截图完成！` });
+    }
     ipcRenderer.on("reply", listenScreen);
+    ipcRenderer.on("successScreen", listenShop);
     return function clean() {
       ipcRenderer.off("reply", listenScreen);
+      ipcRenderer.off("successScreen", listenShop);
     };
   });
+  const StartBtn = function () {
+    return (
+      <>
+        <ClockCircleOutlined /> 定时
+      </>
+    );
+  };
   return (
     <div className="App">
       <Space direction="vertical">
@@ -54,6 +72,7 @@ function App() {
               </Text>
               <TimePicker
                 onChange={(time) => {
+                  console.log(time);
                   setTime(time);
                 }}
               />
@@ -66,7 +85,9 @@ function App() {
         <Row>
           <Col span={16} offset={4}>
             <TextArea
+              className="textareaInput"
               spellCheck={false}
+              resize="false"
               placeholder="请输入需要截图的店铺名称，回车换行分隔"
               rows={6}
               onChange={(event) => {
@@ -76,20 +97,23 @@ function App() {
             />
           </Col>
         </Row>
-        <Row>
+        {/* <Row>
           <Col span={20} offset={4}>
             上次输入的浏览器地址：{chromeUrl}
           </Col>
-        </Row>
+        </Row> */}
 
         <Row>
           <Col span={13} offset={4}>
             <Search
+              spellCheck={false}
+              prefix={<ChromeOutlined />}
+              defaultValue={chromeUrl}
               placeholder="请输入本机的chrome浏览器地址"
-              enterButton="开始截图"
+              enterButton={<StartBtn></StartBtn>}
               loading={loading}
               onChange={(event) => {
-                setChromeUrl(123);
+                setChromeUrl(event.target.value);
               }}
               onSearch={(value) => {
                 localStorage.setItem("chromeUrl", value);
@@ -115,7 +139,7 @@ function App() {
                 setLoading(false);
               }}
             >
-              取消任务
+              {<CloseCircleOutlined />}取消
             </Button>
           </Col>
         </Row>
@@ -142,7 +166,7 @@ function App() {
           </Col>
         </Row>
       </Space>
-      <div style={{ height: "50px" }}></div>
+      <div style={{ height: "25px" }}></div>
     </div>
   );
 }
