@@ -1,0 +1,4 @@
+owner: Transee1
+repo: electron
+provider: github
+updaterCacheDirName: web-updater

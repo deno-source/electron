@@ -1,13 +1,19 @@
-@import '~antd/dist/antd.css';
-body{
-    background-color: transparent;
+@import "~antd/dist/antd.css";
+body {
+  background-color: transparent;
 }
-.App{
-    background: #ebf6ff;
-    border-radius: 15px;
-    border: 2px solid #9ccfff;
+.App {
+  background: #ebf6ff;
+  border-radius: 15px;
+  border: 2px solid #9ccfff;
 }
-.textareaInput{
-    height: 192px;
-    resize: none;
+.textareaInput {
+  height: 192px;
+  resize: none;
+}
+.tips {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }

@@ -7,13 +7,17 @@ const fetch = require('node-fetch');
 const scrollToBottom = require('./scrollToBottom.js');
 const mkdirsSync = require('./mkdirsSync.js');
 const mergeImages = require('./mergeImages.js');
-const { picHeight, screenWidth, analyzerFolderName, screenFolder } = require('./global.js');
+const { picHeight, screenWidth, analyzerFolderName, folder } = require('./global.js');
 const iPhone = puppeteer.devices['iPhone 11 Pro Max'];
 var nowShopName = null;
 var nowModuleList = null;
 var resourceJsIndex = 1; //资源标记索引，记录当前是第几个js
 var resourceCssIndex = 1; //资源标记索引，记录当前是第几个css
+var today = null; //今天日期
+var screenFolder = null; //文件夹
 module.exports = async function start(chromeUrl, shopName, mainWindow) {
+    today = (new Date()).toLocaleDateString().replace(/\//g, '_');
+    screenFolder = folder + today + '/';
     console.log(chromeUrl, shopName)
     const browser = await puppeteer.launch({
         headless: true,
@@ -60,6 +64,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
             console.log('\n' + nowShopName + '页面模块类型：\n', moduleListType.join(','));
             console.log('\n' + nowShopName + '页面模块清单：\n', nowModuleList.join(','));
             console.log('\n' + nowShopName + '嗅探到关联到的页面ID：\n', pages.join(','));
+
         }
         if (res.url().endsWith('.js')) { //保存依赖的js文件
             let arr = res.url().split("/");
@@ -87,11 +92,16 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
     });
 
     for (let shop = 0; shop < shopName.length; shop++) {
+        mainWindow.webContents.send('progress', {
+            shop: shopName[shop],
+            desc: '正在打开',
+            progress: 0
+        });
         resourceCssIndex = 1;
         resourceJsIndex = 1;
         mkdirsSync(screenFolder + shopName[shop]); //创建临时截图文件夹
         mkdirsSync(screenFolder + shopName[shop] + analyzerFolderName); //创建临时分析文件夹
-        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/`); //创建最终文件夹，储存所有内容
+        // mkdirsSync(screenFolder + `${shopName[shop]}_finalData/`); //创建最终文件夹，储存所有内容
         mkdirsSync(screenFolder + `${shopName[shop]}_finalData/js/`); //创建储存js的文件夹
         mkdirsSync(screenFolder + `${shopName[shop]}_finalData/css/`); //创建储存js的文件夹
         mkdirsSync(screenFolder + `${shopName[shop]}_finalData/img/`); //创建储存js的文件夹
@@ -102,17 +112,30 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
             height: 900,
         });
 
+        mainWindow.webContents.send('progress', {
+            shop: shopName[shop],
+            desc: '正在浏览...',
+            progress: 0
+        });
         await page.waitFor(3500);
-
         await page.evaluate(() => {
             Array.from(document.querySelectorAll('.J_MIDDLEWARE_FRAME_WIDGET')).map(item => item.style.display = 'none')
             return Promise.resolve('ok')
         });
-
+        mainWindow.webContents.send('progress', {
+            shop: shopName[shop],
+            desc: '做一些清理工作...',
+            progress: 0
+        });
         let data = await scrollToBottom(page);
         await page.setViewport({
             width: screenWidth,
             height: data.h
+        });
+        mainWindow.webContents.send('progress', {
+            shop: shopName[shop],
+            desc: '为截图开始做准备...',
+            progress: 0
         });
         await page.waitFor(2000);
         let html = await page.evaluate(() => {
@@ -120,7 +143,6 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
             return Promise.resolve(document.getElementsByTagName('html')[0].innerHTML.replace(/src="\/\//g, 'src="https://').replace(/href="\/\//g, 'href="https://'));
         });
         fs.writeFileSync(screenFolder + `${nowShopName}_finalData/index.html`, html);
-
         let ImageHeight = picHeight; //截图限制高度一万像素，避免出现空白情况
         let tempLength = Math.ceil(data.h / ImageHeight);
 
@@ -137,13 +159,20 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
                         height: j * ImageHeight
                     }
                 }).then(res => {
-                    console.log('截图了', i + 1, '/', tempLength, '张', '生成路径:', tempPath)
+                    mainWindow.webContents.send('progress', {
+                        shop: shopName[shop],
+                        desc: '生成截图中...',
+                        progress: Math.floor(((i + 1) / tempLength) * 100)
+                    });
+                    let tips = `截图了${i + 1}/${tempLength}张 生成路径:${tempPath}`;
+                    console.log(tips)
                 }).catch(err => {
                     console.log('截图失败！', err);
                 })
             }
 
-            mergeImages(shopName[shop]) //合并图片
+            mergeImages(shopName[shop], screenFolder) //合并图片
+
         }
 
         {
@@ -199,18 +228,23 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
                         height: j * ImageHeight
                     }
                 }).then(res => {
-                    console.log('截图了', i + 1, '/', tempLength, '张', '生成路径:', tempPath)
+                    mainWindow.webContents.send('progress', {
+                        shop: shopName[shop],
+                        desc: '生成分析版本截图中...',
+                        progress: Math.floor(((i + 1) / tempLength) * 100)
+                    });
+                    let tips = `截图了${i + 1}/${tempLength}张 生成路径:${tempPath}`;
+                    console.log(tips)
                 }).catch(err => {
                     console.log('截图失败！', err);
                 })
             }
 
-            mergeImages(shopName[shop], analyzerFolderName) //合并图片
+            mergeImages(shopName[shop], screenFolder, analyzerFolderName) //合并图片
             mainWindow.webContents.send('successScreen', {
                 shop: shopName[shop]
             });
         }
     }
-
     await browser.close();
 }

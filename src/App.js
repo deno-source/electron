@@ -5,9 +5,11 @@ import {
   message,
   Row,
   Col,
+  Progress,
   Space,
   TimePicker,
   Typography,
+  Descriptions,
 } from "antd";
 import {
   ChromeOutlined,
@@ -24,21 +26,37 @@ const { Text, Link } = Typography;
 function App() {
   const [loading, setLoading] = useState(false);
   const [typeValue, setTypeValue] = useState([]);
+  const [percent, setPercent] = useState(0);
+  const [desc, setDesc] = useState("等待操作");
   const [time, setTime] = useState("");
+  const [nowShop, setNowShop] = useState("等待下一个店铺");
   const [chromeUrl, setChromeUrl] = useState(localStorage.getItem("chromeUrl"));
   useEffect(() => {
     function listenScreen(event, msg) {
+      message.error(msg);
       setLoading(false);
     }
+
+    function listenProgress(event, msg) {
+      setDesc(msg.desc);
+      setPercent(msg.progress);
+      setNowShop(msg.shop);
+    }
+
     function listenShop(event, msg) {
       console.log("截图完成！");
-      message.success(`${msg.shop}店铺截图完成！`);
-      new Notification("截图完成！", { body: `${msg}店铺截图完成！` });
+      setDesc("等待操作");
+      setPercent(0);
+      setNowShop("等待下一个店铺");
+      message.success(`${msg.shop} 店铺截图完成！`);
+      new Notification("截图完成！", { body: `${msg.shop}店铺截图完成！` });
     }
     ipcRenderer.on("reply", listenScreen);
+    ipcRenderer.on("progress", listenProgress);
     ipcRenderer.on("successScreen", listenShop);
     return function clean() {
       ipcRenderer.off("reply", listenScreen);
+      ipcRenderer.off("progress", listenProgress);
       ipcRenderer.off("successScreen", listenShop);
     };
   });
@@ -71,6 +89,7 @@ function App() {
                 准备定时于每天
               </Text>
               <TimePicker
+                disabled={loading}
                 onChange={(time) => {
                   console.log(time);
                   setTime(time);
@@ -83,25 +102,30 @@ function App() {
           </Col>
         </Row>
         <Row>
-          <Col span={16} offset={4}>
+          <Col span={6} offset={4}>
             <TextArea
               className="textareaInput"
               spellCheck={false}
               resize="false"
               placeholder="请输入需要截图的店铺名称，回车换行分隔"
               rows={6}
+              disabled={loading}
               onChange={(event) => {
                 let readArr = event.nativeEvent.target.value.split("\n");
                 setTypeValue(readArr);
               }}
             />
           </Col>
-        </Row>
-        {/* <Row>
-          <Col span={20} offset={4}>
-            上次输入的浏览器地址：{chromeUrl}
+          <Col span={2} offset={1}>
+            <Progress type="circle" percent={percent} />
           </Col>
-        </Row> */}
+          <Col className="tips" span={4} offset={3}>
+            <div>
+            <Text type="success">{nowShop}</Text><br />
+            <Text type="success">{desc}</Text>
+           </div>
+          </Col>
+        </Row>
 
         <Row>
           <Col span={13} offset={4}>
@@ -109,9 +133,10 @@ function App() {
               spellCheck={false}
               prefix={<ChromeOutlined />}
               defaultValue={chromeUrl}
-              placeholder="请输入本机的chrome浏览器地址"
-              enterButton={<StartBtn></StartBtn>}
+              placeholder="请输入本机谷歌浏览器地址"
+              enterButton={<StartBtn> </StartBtn>}
               loading={loading}
+              disabled={loading}
               onChange={(event) => {
                 setChromeUrl(event.target.value);
               }}
@@ -139,13 +164,22 @@ function App() {
                 setLoading(false);
               }}
             >
-              {<CloseCircleOutlined />}取消
+              {<CloseCircleOutlined />}
+              取消
             </Button>
           </Col>
         </Row>
         <Row>
           <Col style={{ textAlign: "center" }} span={16} offset={4}>
             <Space>
+              <Button
+                type="primary"
+                onClick={() => {
+                  ipcRenderer.send("getpath", "");
+                }}
+              >
+                打开截图目录
+              </Button>
               <Button
                 type="primary"
                 onClick={() => {
@@ -166,7 +200,7 @@ function App() {
           </Col>
         </Row>
       </Space>
-      <div style={{ height: "25px" }}></div>
+      <div style={{ height: "25px" }}> </div>
     </div>
   );
 }
