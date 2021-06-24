@@ -1,13 +1,17 @@
 const { app, BrowserWindow, dialog, ipcMain, Tray, Menu, shell } = require('electron');
+const puppeteer = require('puppeteer-core');
 const { autoUpdater } = require('electron-updater');
 const isDev = require('electron-is-dev');
 const path = require('path');
+const fs = require('fs');
 const mkdirsSync = require('./screen/mkdirsSync');
 const { screenFolder, folder } = require('./screen/global.js');
 
 const start = require('./screen/index.js');
 const schedule = require("node-schedule");
 var job = null;
+var mainWin = null;
+var cookies = [];
 
 function updateCheckFn() {
     // const feedUrl = 'https://dianshangbat.cn/demo/screen/'; // 更新包位置
@@ -44,23 +48,38 @@ function updateCheckFn() {
     //     })
     // })
 
-    // autoUpdater.on('update-not-available', () => {
-    //     dialog.showMessageBox({
-    //         title: '无更新',
-    //         message: '没有最新版本',
-    //     })
-    // })
+    autoUpdater.on('update-not-available', () => {
+        dialog.showMessageBox({
+            title: '无更新',
+            message: '没有最新版本',
+        })
+    })
 
 }
 
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+    app.quit()
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        if (mainWin) {
+            if (mainWin.isMinimized()) mainWin.restore()
+            mainWin.focus()
+            mainWin.show()
+        }
+    })
+}
+
 app.on('ready', function() {
+    updateCheckFn();
     try {
-        updateCheckFn();
         mkdirsSync(folder);
         ipcMain.on('screenshot', function(event, { chromeUrl, shopList, time }) {
-            console.log(time);
+
             job = schedule.scheduleJob(`${time.getSeconds()} ${time.getMinutes()} ${time.getHours()} * * *`, async function() {
-                await start(chromeUrl, shopList, mainWin);
+                mainWin.webContents.send('start', true); //开始任务
+                await start(chromeUrl, shopList, mainWin, cookies);
+                mainWin.webContents.send('start', false); //结束任务
             });
 
         });
@@ -76,9 +95,35 @@ app.on('ready', function() {
         ipcMain.on('getpath', function(event) {
             shell.openExternal(path.join(app.getAppPath(), '../../screenshot'));
         });
+        ipcMain.on('login', async function start(event, msg) {
+            const browser = await puppeteer.launch({
+                headless: false,
+                executablePath: msg,
+                ignoreDefaultArgs: ["--enable-automation"],
+                userDataDir: './user_data'
+            });
+            const page = await browser.newPage();
+            await page.setViewport({
+                width: 1920,
+                height: 1500,
+            });
 
+            console.log(cookies)
+            if (cookies.length > 0) {
+                console.log('有了cookie')
+                await page.goto('https://i.taobao.com/my_taobao.htm');
+                await page.setCookie(...cookies);
+                await page.waitFor(1000 * 60 * 10);
+            } else {
+                await page.goto('https://login.taobao.com/member/login.jhtml?tpl_redirect_url=https%3A%2F%2Fwww.tmall.com&style=miniall&enup=true&newMini2=true');
+                await page.waitForSelector('.j_category.category-con');
+                cookies = await page.cookies();
+            }
 
-        let mainWin = new BrowserWindow({
+            await browser.close();
+        });
+
+        mainWin = new BrowserWindow({
             width: 800,
             height: 600,
             resizable: false,
@@ -93,7 +138,13 @@ app.on('ready', function() {
         // mainWin.webContents.session.loadExtension('C:/Users/Administrator/Desktop/桌面/chromeTmall');
         isDev ? (mainWin.loadURL('http://localhost:3000/'), mainWin.webContents.openDevTools()) : mainWin.loadURL(`file://${path.join(__dirname, './build/index.html')}`);
 
-        let trayMenuTemplate = [{ //系统托盘图标目录
+        let trayMenuTemplate = [{ //检查更新
+            label: '检查更新',
+            click: function() {
+                autoUpdater.checkForUpdates();
+                autoUpdater.checkForUpdatesAndNotify();
+            }
+        }, { //系统托盘图标目录
             label: '退出小钟截图',
             click: function() {
                 app.quit();
@@ -114,6 +165,9 @@ app.on('ready', function() {
             // appTray.destroy();
         });
     } catch (e) {
-        event.reply('reply', JSON.stringify(e));
+        dialog.showMessageBox({
+            title: '错误信息',
+            message: JSON.stringify(e),
+        })
     }
 })

@@ -9,7 +9,6 @@ import {
   Space,
   TimePicker,
   Typography,
-  Descriptions,
 } from "antd";
 import {
   ChromeOutlined,
@@ -21,15 +20,16 @@ import { useEffect, useState } from "react";
 
 const { ipcRenderer } = window.electron;
 const { Search, TextArea } = Input;
-const { Text, Link } = Typography;
+const { Text } = Typography;
 
 function App() {
   const [loading, setLoading] = useState(false);
   const [typeValue, setTypeValue] = useState([]);
   const [percent, setPercent] = useState(0);
-  const [desc, setDesc] = useState("等待操作");
+  const [desc, setDesc] = useState("等待操作...");
   const [time, setTime] = useState("");
-  const [nowShop, setNowShop] = useState("等待下一个店铺");
+  const [isStart, setIsStart] = useState(false);
+  const [nowShop, setNowShop] = useState("等待下一次任务");
   const [chromeUrl, setChromeUrl] = useState(localStorage.getItem("chromeUrl"));
   useEffect(() => {
     function listenScreen(event, msg) {
@@ -43,21 +43,27 @@ function App() {
       setNowShop(msg.shop);
     }
 
+    function listenStart(event, msg) {
+      setIsStart(msg)
+    }
+
     function listenShop(event, msg) {
       console.log("截图完成！");
-      setDesc("等待操作");
+      setDesc("等待操作...");
       setPercent(0);
-      setNowShop("等待下一个店铺");
+      setNowShop("等待下一次任务");
       message.success(`${msg.shop} 店铺截图完成！`);
       new Notification("截图完成！", { body: `${msg.shop}店铺截图完成！` });
     }
     ipcRenderer.on("reply", listenScreen);
     ipcRenderer.on("progress", listenProgress);
     ipcRenderer.on("successScreen", listenShop);
+    ipcRenderer.on("start", listenStart);
     return function clean() {
       ipcRenderer.off("reply", listenScreen);
       ipcRenderer.off("progress", listenProgress);
       ipcRenderer.off("successScreen", listenShop);
+      ipcRenderer.off("start", listenStart);
     };
   });
   const StartBtn = function () {
@@ -77,6 +83,7 @@ function App() {
                 WebkitAppRegion: "drag",
                 borderRadius: "15px 15px 0 0",
               }}
+              alt="banner"
               width="100%"
               src={banner}
             />
@@ -158,6 +165,7 @@ function App() {
           </Col>
           <Col>
             <Button
+              disabled={isStart}
               type="danger"
               onClick={() => {
                 ipcRenderer.send("cancelJob", "");
@@ -179,6 +187,14 @@ function App() {
                 }}
               >
                 打开截图目录
+              </Button>
+              <Button
+                type="primary"
+                onClick={() => {
+                  ipcRenderer.send("login", chromeUrl);
+                }}
+              >
+                登录天猫
               </Button>
               <Button
                 type="primary"

@@ -15,13 +15,16 @@ var resourceJsIndex = 1; //资源标记索引，记录当前是第几个js
 var resourceCssIndex = 1; //资源标记索引，记录当前是第几个css
 var today = null; //今天日期
 var screenFolder = null; //文件夹
-module.exports = async function start(chromeUrl, shopName, mainWindow) {
+
+module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) {
     today = (new Date()).toLocaleDateString().replace(/\//g, '_');
     screenFolder = folder + today + '/';
     console.log(chromeUrl, shopName)
     const browser = await puppeteer.launch({
         headless: true,
-        executablePath: chromeUrl
+        executablePath: chromeUrl,
+        ignoreDefaultArgs: ["--enable-automation"],
+        userDataDir: './user_data'
     });
     const page = await browser.newPage();
     await page.emulate(iPhone);
@@ -46,6 +49,16 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
         }
     });
     page.on('response', async res => { //处理响应模块数据
+        if (res.url().indexOf('h5api.m.tmall.com/h5/mtop.taobao.wireless.shop.hover.downgrade.fetch') >= 0) {
+            let modulesData = await res.text();
+            let catgroyRes = modulesData.match(/https:\/\/market\.m\.taobao\.com\/app\/tb\-source\-app\/shopact\/pages\/index\?wh_weex=true\&pathInfo\=shop\/custom_category[^"]+/);
+            if (catgroyRes) {
+                console.log('发现类目页面链接:', catgroyRes[0]);
+                fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + '宝贝分类页数据地址.txt', catgroyRes[0] + '\n' + modulesData);
+            } else {
+                fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + '宝贝分类页数据地址.txt', res.url() + '\n' + modulesData);
+            }
+        }
         if (res.url().indexOf('alisitecdn.m.taobao.com') >= 0) {
             let modulesData = await res.json();
             fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + nowShopName + '_shopData.json', JSON.stringify(modulesData));
@@ -85,18 +98,12 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
             let fileName = arr[arr.length - 1];
             let resJs = await res.buffer();
             fs.writeFileSync(screenFolder + `${nowShopName}_finalData/img/` + fileName, resJs);
-
         }
-
-
     });
 
     for (let shop = 0; shop < shopName.length; shop++) {
-        mainWindow.webContents.send('progress', {
-            shop: shopName[shop],
-            desc: '正在打开',
-            progress: 0
-        });
+        await page.setCookie(...cookies);
+        console.log('cookies写入完成...', cookies.length);
         resourceCssIndex = 1;
         resourceJsIndex = 1;
         mkdirsSync(screenFolder + shopName[shop]); //创建临时截图文件夹
@@ -106,26 +113,27 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
         mkdirsSync(screenFolder + `${shopName[shop]}_finalData/css/`); //创建储存js的文件夹
         mkdirsSync(screenFolder + `${shopName[shop]}_finalData/img/`); //创建储存js的文件夹
         nowShopName = shopName[shop];
+
+
         await page.goto('https://' + shopName[shop] + '.m.tmall.com/');
         await page.setViewport({
             width: screenWidth,
             height: 900,
         });
-
         mainWindow.webContents.send('progress', {
             shop: shopName[shop],
-            desc: '正在浏览...',
-            progress: 0
+            desc: '正在加载页面...',
+            progress: 10
         });
         await page.waitFor(3500);
         await page.evaluate(() => {
             Array.from(document.querySelectorAll('.J_MIDDLEWARE_FRAME_WIDGET')).map(item => item.style.display = 'none')
-            return Promise.resolve('ok')
+            return Promise.resolve('ok');
         });
         mainWindow.webContents.send('progress', {
             shop: shopName[shop],
             desc: '做一些清理工作...',
-            progress: 0
+            progress: 20
         });
         let data = await scrollToBottom(page);
         await page.setViewport({
@@ -135,7 +143,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
         mainWindow.webContents.send('progress', {
             shop: shopName[shop],
             desc: '为截图开始做准备...',
-            progress: 0
+            progress: 30
         });
         await page.waitFor(2000);
         let html = await page.evaluate(() => {
@@ -162,7 +170,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
                     mainWindow.webContents.send('progress', {
                         shop: shopName[shop],
                         desc: '生成截图中...',
-                        progress: Math.floor(((i + 1) / tempLength) * 100)
+                        progress: Math.floor(((i + 1) / tempLength) * 50) + 50
                     });
                     let tips = `截图了${i + 1}/${tempLength}张 生成路径:${tempPath}`;
                     console.log(tips)
@@ -172,9 +180,13 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
             }
 
             mergeImages(shopName[shop], screenFolder) //合并图片
-
+            mainWindow.webContents.send('progress', {
+                shop: shopName[shop],
+                desc: '截图拼合完成...',
+                progress: 0
+            });
         }
-
+        await page.waitFor(1000);
         {
             console.log('开始分析页面链接和产品id以及页面样式布局......');
 
@@ -230,7 +242,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
                 }).then(res => {
                     mainWindow.webContents.send('progress', {
                         shop: shopName[shop],
-                        desc: '生成分析版本截图中...',
+                        desc: '分析截图中...',
                         progress: Math.floor(((i + 1) / tempLength) * 100)
                     });
                     let tips = `截图了${i + 1}/${tempLength}张 生成路径:${tempPath}`;
@@ -241,6 +253,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow) {
             }
 
             mergeImages(shopName[shop], screenFolder, analyzerFolderName) //合并图片
+            await page.waitFor(1000);
             mainWindow.webContents.send('successScreen', {
                 shop: shopName[shop]
             });

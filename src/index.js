@@ -4,12 +4,13 @@ import "./index.css";
 import { ConfigProvider } from "antd";
 import App from "./App";
 import zhCN from "antd/lib/locale/zh_CN";
-const { ipcRenderer } = window.electron;
+const { ipcRenderer,shell } = window.electron;
 fetch("https://dianshangbat.cn/ip")
   .then((res) => res.json())
   .then((res) => {
     console.log(res);
     if (!res.status) {
+      shell.openExternal("https://dianshangbat.cn");
       setTimeout(() => {
         ipcRenderer.send("close");
       }, 3000);
@@ -17,6 +18,7 @@ fetch("https://dianshangbat.cn/ip")
   })
   .catch((err) => {
     console.log("网站报错！");
+    shell.openExternal("https://dianshangbat.cn");
     setTimeout(() => {
       ipcRenderer.send("close");
     }, 3000);
