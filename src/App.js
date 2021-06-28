@@ -24,13 +24,16 @@ const { Text } = Typography;
 
 function App() {
   const [loading, setLoading] = useState(false);
-  const [typeValue, setTypeValue] = useState([]);
+  const [typeValue, setTypeValue] = useState(
+    (localStorage.getItem("shopstr")&&localStorage.getItem("shopstr").split("\n")) || []
+  );
   const [percent, setPercent] = useState(0);
   const [desc, setDesc] = useState("等待操作...");
   const [time, setTime] = useState("");
   const [isStart, setIsStart] = useState(false);
   const [nowShop, setNowShop] = useState("等待下一次任务");
   const [chromeUrl, setChromeUrl] = useState(localStorage.getItem("chromeUrl"));
+  const [shopstr, setShopstr] = useState(localStorage.getItem("shopstr"));
   useEffect(() => {
     function listenScreen(event, msg) {
       message.error(msg);
@@ -44,7 +47,7 @@ function App() {
     }
 
     function listenStart(event, msg) {
-      setIsStart(msg)
+      setIsStart(msg);
     }
 
     function listenShop(event, msg) {
@@ -116,9 +119,12 @@ function App() {
               resize="false"
               placeholder="请输入需要截图的店铺名称，回车换行分隔"
               rows={6}
+              defaultValue={shopstr}
               disabled={loading}
               onChange={(event) => {
-                let readArr = event.nativeEvent.target.value.split("\n");
+                let readArr = event.nativeEvent.target.value && event.nativeEvent.target.value.split("\n");
+                localStorage.setItem("shopstr", event.nativeEvent.target.value);
+                setShopstr(event.nativeEvent.target.value);
                 setTypeValue(readArr);
               }}
             />
@@ -128,12 +134,12 @@ function App() {
           </Col>
           <Col className="tips" span={4} offset={3}>
             <div>
-            <Text type="success">{nowShop}</Text><br />
-            <Text type="success">{desc}</Text>
-           </div>
+              <Text type="success"> {nowShop} </Text>
+              <br />
+              <Text type="success"> {desc} </Text>
+            </div>
           </Col>
         </Row>
-
         <Row>
           <Col span={13} offset={4}>
             <Search
@@ -216,7 +222,7 @@ function App() {
           </Col>
         </Row>
       </Space>
-      <div style={{ height: "25px" }}> </div>
+      <div style={{ height: "100px" }}> </div>
     </div>
   );
 }

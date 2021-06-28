@@ -14,17 +14,8 @@ var mainWin = null;
 var cookies = [];
 
 function updateCheckFn() {
-    // const feedUrl = 'https://dianshangbat.cn/demo/screen/'; // 更新包位置
-    // autoUpdater.setFeedURL(feedUrl);
-    if (isDev) {
-        autoUpdater.updateConfigPath = path.join(__dirname, 'dev-app-update.yml');
-    }
     autoUpdater.checkForUpdates();
-    // autoUpdater.autoDownload = false;
     autoUpdater.checkForUpdatesAndNotify();
-    // autoUpdater.on('error', error => {
-    //     dialog.showErrorBox(error)
-    // })
     autoUpdater.on('update-available', () => {
         dialog.showMessageBox({
             title: '应用有新的更新！',
@@ -32,21 +23,6 @@ function updateCheckFn() {
         })
         shell.openExternal("https://dianshangbat.cn/demo/screen/Setup.exe");
     })
-
-    // autoUpdater.on('download-progress', progressObj => {
-    //     console.log('下载进度', progressObj);
-    // })
-
-    // autoUpdater.on('update-downloaded', progressObj => {
-    //     dialog.showMessageBox({
-    //         title: '安装更新',
-    //         message: '更新下载完毕，应用将进行安装！'
-    //     }, () => {
-    //         setImmediate(() => {
-    //             autoUpdater.quitAndInstall()
-    //         })
-    //     })
-    // })
 
     autoUpdater.on('update-not-available', () => {
         dialog.showMessageBox({
@@ -102,13 +78,14 @@ app.on('ready', function() {
                 ignoreDefaultArgs: ["--enable-automation"],
                 userDataDir: './user_data'
             });
+
             const page = await browser.newPage();
             await page.setViewport({
                 width: 1920,
                 height: 1500,
             });
 
-            console.log(cookies)
+            console.log(cookies);
             if (cookies.length > 0) {
                 console.log('有了cookie')
                 await page.goto('https://i.taobao.com/my_taobao.htm');
@@ -145,7 +122,7 @@ app.on('ready', function() {
                 autoUpdater.checkForUpdatesAndNotify();
             }
         }, { //系统托盘图标目录
-            label: '退出小钟截图',
+            label: '退出竞品截图',
             click: function() {
                 app.quit();
             }
@@ -154,7 +131,7 @@ app.on('ready', function() {
         appTray = new Tray(path.join(__dirname, './app.png'));
         const contextMenu = Menu.buildFromTemplate(trayMenuTemplate);
         // 设置托盘悬浮提示
-        appTray.setToolTip('小钟截图');
+        appTray.setToolTip('竞品截图');
         // 设置托盘菜单
         appTray.setContextMenu(contextMenu);
 

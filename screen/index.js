@@ -7,6 +7,8 @@ const fetch = require('node-fetch');
 const scrollToBottom = require('./scrollToBottom.js');
 const mkdirsSync = require('./mkdirsSync.js');
 const mergeImages = require('./mergeImages.js');
+const pcScreen = require('./pcScreen');
+const { getParams } = require('./utils');
 const { picHeight, screenWidth, analyzerFolderName, folder } = require('./global.js');
 const iPhone = puppeteer.devices['iPhone 11 Pro Max'];
 var nowShopName = null;
@@ -15,6 +17,7 @@ var resourceJsIndex = 1; //资源标记索引，记录当前是第几个js
 var resourceCssIndex = 1; //资源标记索引，记录当前是第几个css
 var today = null; //今天日期
 var screenFolder = null; //文件夹
+var baseUrl = null; //基础的url地址
 
 module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) {
     today = (new Date()).toLocaleDateString().replace(/\//g, '_');
@@ -27,8 +30,9 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
         userDataDir: './user_data'
     });
     const page = await browser.newPage();
+    const pageCat = await browser.newPage();
+    const pagePC = (await browser.pages())[0];
     await page.emulate(iPhone);
-
     await page.setRequestInterception(true); //开启请求拦截
     page.on('request', async request => { //注入links
         if (/shopmod|taobaowpmod/.test(request.url())) { //发现注入的模块里面都是有一个link:e.href||e.url,没有写入，所以这里对所有isv模块都进行一次处理
@@ -48,12 +52,40 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
             await request.continue();
         }
     });
+
+    pageCat.on('response', async res => { //处理响应模块数据
+        if (res.url().endsWith('.webp') || res.url().endsWith('.jpg') || res.url().endsWith('.png')) { //保存依赖的js文件
+            let arr = res.url().split("/");
+            let fileName = arr[arr.length - 1];
+            let resJs = await res.buffer();
+            fs.writeFileSync(screenFolder + `${nowShopName}_finalData/宝贝分类图片/` + fileName, resJs);
+        }
+    });
+
     page.on('response', async res => { //处理响应模块数据
         if (res.url().indexOf('h5api.m.tmall.com/h5/mtop.taobao.wireless.shop.hover.downgrade.fetch') >= 0) {
             let modulesData = await res.text();
             let catgroyRes = modulesData.match(/https:\/\/market\.m\.taobao\.com\/app\/tb\-source\-app\/shopact\/pages\/index\?wh_weex=true\&pathInfo\=shop\/custom_category[^"]+/);
             if (catgroyRes) {
                 console.log('发现类目页面链接:', catgroyRes[0]);
+                let url = `https://alisitecdn.m.taobao.com/pagedata/shop/custom_category?pathInfo=shop/custom_category&userId=${getParams(catgroyRes[0], 'userId')}&shopId=${getParams(catgroyRes[0], 'shopId')}&pageId=${getParams(catgroyRes[0], 'pageId')}`;
+                let response = await fetch(url);
+                let text = await response.json();
+                await pageCat.setViewport({
+                    width: 750,
+                    height: 2500,
+                });
+                await pageCat.goto(catgroyRes[0]);
+                await pageCat.evaluate(() => {
+                    Array.from(document.querySelectorAll('.J_MIDDLEWARE_FRAME_WIDGET')).map(item => item.style.display = 'none')
+                    return Promise.resolve(0);
+                });
+                await page.waitFor(2000);
+                await pageCat.screenshot({
+                    path: screenFolder + `${nowShopName}_finalData/` + '宝贝分类.png',
+                    fullPage: true
+                })
+                fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + '宝贝分类数据备份.json', JSON.stringify(text));
                 fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + '宝贝分类页数据地址.txt', catgroyRes[0] + '\n' + modulesData);
             } else {
                 fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + '宝贝分类页数据地址.txt', res.url() + '\n' + modulesData);
@@ -66,7 +98,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
             let pages = [...new Set(modulesData.module.moduleList.filter(mod => mod.moduleData && mod.moduleData.pageIds).flatMap(mod => mod.moduleData && mod.moduleData.pageIds))];
             fs.writeFileSync(screenFolder + `${nowShopName}_finalData/` + nowShopName + '关联页面清单.txt', '当前页面链接：' + res.url() + '\n' + pages.join('\n'));
             //抓取其他页面的数据备份
-            let baseUrl = res.url().split("&pageId=")[0];
+            baseUrl = res.url().split("&pageId=")[0];
             for (let pageid = 0; pageid < pages.length; pageid++) {
                 let response = await fetch(baseUrl + "&pageId=" + pages[pageid]);
                 let text = await response.json();
@@ -82,6 +114,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
         if (res.url().endsWith('.js')) { //保存依赖的js文件
             let arr = res.url().split("/");
             let fileName = arr[arr.length - 1];
+            fileName = fileName.replace(/\.|\?|\,/g, '_');
             let resJs = await res.text();
             fs.writeFileSync(screenFolder + `${nowShopName}_finalData/js/` + resourceJsIndex + "_" + fileName, '// ' + res.url() + '\n' + resJs);
             resourceJsIndex++;
@@ -110,10 +143,22 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
         mkdirsSync(screenFolder + shopName[shop] + analyzerFolderName); //创建临时分析文件夹
         // mkdirsSync(screenFolder + `${shopName[shop]}_finalData/`); //创建最终文件夹，储存所有内容
         mkdirsSync(screenFolder + `${shopName[shop]}_finalData/js/`); //创建储存js的文件夹
-        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/css/`); //创建储存js的文件夹
-        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/img/`); //创建储存js的文件夹
+        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/css/`); //创建储存css的文件夹
+        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/img/`); //创建储存图片的文件夹
+        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/宝贝分类图片/`); //创建储存宝贝分类的文件夹
+        mkdirsSync(screenFolder + `${shopName[shop]}_finalData/pc/`); //创建储存pc的文件夹
         nowShopName = shopName[shop];
-
+        mainWindow.webContents.send('progress', {
+            shop: shopName[shop],
+            desc: '正在加载PC页面...',
+            progress: 3
+        });
+        await pcScreen(pagePC, nowShopName, screenFolder);
+        mainWindow.webContents.send('progress', {
+            shop: shopName[shop],
+            desc: '完成pc截图备份...',
+            progress: 5
+        });
 
         await page.goto('https://' + shopName[shop] + '.m.tmall.com/');
         await page.setViewport({
@@ -122,7 +167,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
         });
         mainWindow.webContents.send('progress', {
             shop: shopName[shop],
-            desc: '正在加载页面...',
+            desc: '正在加载无线页面...',
             progress: 10
         });
         await page.waitFor(3500);
@@ -186,8 +231,7 @@ module.exports = async function start(chromeUrl, shopName, mainWindow, cookies) 
                 progress: 0
             });
         }
-        await page.waitFor(1000);
-        {
+        await page.waitFor(1000); {
             console.log('开始分析页面链接和产品id以及页面样式布局......');
 
             await page.evaluate(nowModuleList => {
